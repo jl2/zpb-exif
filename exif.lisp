@@ -482,6 +482,13 @@ offset area?"
           (+ (ash (read-byte stream) 8)
              (read-byte stream))))
 
+(defun read-jpeg-uint32 (stream)
+  (logand #xFFFFFFFF
+          (+ (ash (read-byte stream) 0)
+             (ash (read-byte stream) 8)
+             (ash (read-byte stream) 16)
+             (ash (read-byte stream) 24))))
+
 (defun check-bytes (stream &rest bytes)
   "Return true if next bytes of STREAM match the list BYTES."
   (loop for byte in bytes
@@ -528,7 +535,17 @@ the vector does not contain Exif data, raise INVALID-EXIF-STREAM."
                       :get-32-function get-32
                       :get-16-function get-16)))))
 
-(defun make-exif-from-stream (stream)
+(defun make-exif-from-stream (stream size)
+  ;; ASCII "Exif"
+  (unless (check-bytes stream #x45 #x78 #x69 #x66 #x00 #x00)
+    (error 'invalid-exif-stream))
+  (let ((data (make-array size :element-type '(unsigned-byte 8)))
+        (offset (file-position stream)))
+    (read-sequence data stream)
+    (parse-exif-octets data :file (ignore-errors (truename stream))
+                            :offset offset)))
+
+(defun make-exif-from-jpeg-stream (stream)
   "Extract an Exif object from the open (unsigned-byte 8) STREAM. The
 stream must be positioned at the beginning of JPEG data. If the stream
 is not a JPEG stream, raise INVALID-JPEG-STREAM. If the stream does
@@ -537,27 +554,40 @@ not contain Exif data, raise INVALID-EXIF-STREAM."
     (error 'invalid-jpeg-stream))
   (seek-to-app1 stream)
   (let ((size (read-jpeg-uint16 stream)))
-    ;; ASCII "Exif"
-    (unless (check-bytes stream #x45 #x78 #x69 #x66 #x00 #x00)
-      (error 'invalid-exif-stream))
-    (let ((data (make-array size :element-type '(unsigned-byte 8)))
-          (offset (file-position stream)))
-      (read-sequence data stream)
-      (parse-exif-octets data :file (ignore-errors (truename stream))
-                              :offset offset))))
+    (make-exif-from-stream stream size)))
+
+
+(defun make-exif-from-exif-stream (stream)
+  "Extract an Exif object from the open (unsigned-byte 8) STREAM.  The stream
+data is assumed to be in the format used by libheif, with a 32 bit unsigned int size
+ instead of 16 bit. If the stream does not contain Exif data, raise INVALID-EXIF-STREAM."
+  (let ((size (read-jpeg-uint32 stream)))
+    (make-exif-from-stream stream size)))
 
 (defun make-exif-from-file (file)
   (with-open-file (stream file
                           :direction :input
                           :element-type '(unsigned-byte 8))
-    (make-exif-from-stream stream)))
+    (let ((ftype (string-downcase (pathname-type file))))
+      (cond
+        ((or
+          (string= "jpeg" ftype)
+          (string= "jpg" ftype))
+         (make-exif-from-jpeg-stream stream))
+        ((or
+          (string= "exif" ftype))
+         (make-exif-from-exif-stream stream))))))
 
-(defun make-exif (object)
+(defun make-exif (object &optional (exif-or-jpeg :jpeg))
   "Read and create an exif object from OBJECT, which may be a pathname
-designator or a stream."
+designator or a stream.
+If object is a stream and exif-or-jpeg is :jpeg, it is treated as a JPEG Exif stream.
+If object is a stream and exif-or-jpeg is :exif, then the data is treated as Exif exported from a HEIC file using libheif."
   (etypecase object
     ((or string pathname) (make-exif-from-file object))
-    (stream (make-exif-from-stream object))))
+    (stream (ecase exif-or-jpeg
+              (:jpeg (make-exif-from-jpeg-stream object))
+              (:exif (make-exif-from-exif-stream object))))))
 
 
 ;;; Tagsets
