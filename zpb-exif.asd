@@ -36,4 +36,6 @@
   :license "BSD"
   :author "Zachary Beane <xach@xach.com>"
   :description "Read EXIF data from image files"
+  :depends-on (:babel)
+
   :components ((:file "exif")))

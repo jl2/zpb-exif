@@ -179,14 +179,11 @@
 (defun get-32 (pos exif)
   (funcall (get-32-function exif) pos (data exif)))
 
-(defun get-string (pos length exif)
-  (let ((data (data exif))
-        (string (make-string (1- length))))
-    (loop for i from pos
-          for j from 0
-          repeat (1- length)
-          do (setf (char string j) (code-char (aref data i))))
-    string))
+(defun get-string (pos length exif encoding)
+  (babel:octets-to-string (subseq (data exif)
+                                  pos
+                                  (+ pos length -1))
+                          :encoding encoding))
 
 
 ;;; Reading the various data types
@@ -218,7 +215,13 @@ a vector."
 (defun get-ascii (type count pos exif)
   (declare (ignore type))
   (if (plusp count)
-      (get-string pos count exif)
+      (get-string pos count exif :ascii)
+      ""))
+
+(defun get-utf8 (type count pos exif)
+  (declare (ignore type))
+  (if (plusp count)
+      (get-string pos count exif :utf-8)
       ""))
 
 (defun get-short (type count pos exif)
@@ -281,23 +284,25 @@ a vector."
   (warn "Encountered unknown data type ~D, ignoring" type)
   nil)
 
-(defparameter *type-readers*
-  #(get-unknown-type          ; 0
-    get-byte                  ; 1
-    get-ascii                 ; 2
-    get-short                 ; 3
-    get-long                  ; 4
-    get-rational              ; 5
-    get-unknown-type          ; 6
-    get-undefined             ; 7
-    get-unknown-type          ; 8
-    get-slong                 ; 9
-    get-srational             ;10
-    get-unknown-type          ;11
-    get-unknown-type          ;12
-    get-unknown-type          ;13
-    get-unknown-type          ;14
-    get-unknown-type          ;15
+(defun get-type-reader (type-id)
+  (case type-id
+    (0 #'get-unknown-type)
+    (1 #'get-byte)
+    (2 #'get-ascii)
+    (3 #'get-short)
+    (4 #'get-long)
+    (5 #'get-rational)
+    (6 #'get-unknown-type)
+    (7 #'get-undefined)
+    (8 #'get-unknown-type)
+    (9 #'get-slong)
+    (10 #'get-srational)
+    (11 #'get-unknown-type)
+    (12 #'get-unknown-type)
+    (13 #'get-unknown-type)
+    (14 #'get-unknown-type)
+    (15 #'get-unknown-type)
+    (129 #'get-utf8)
     ))
 
 
@@ -355,7 +360,7 @@ offset area?"
     ((4 9) (= count 1))))
 
 (defun read-ifd-value (type count pos exif)
-  (funcall (aref *type-readers* type) type count pos exif))
+  (funcall (get-type-reader type) type count pos exif))
 
 (defun read-ifd-entry (pos ifd exif)
   (let ((tag (get-16 pos exif))
