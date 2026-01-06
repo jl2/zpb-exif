@@ -907,6 +907,11 @@ to a universal time."
   ;; Tags Relating to Date and Time
   (:tag #x9003 :name "DateTimeOriginal" :type datetime)
   (:tag #x9004 :name "DateTimeDigitized" :type datetime)
+
+  (:tag #x9010 :name "OffsetTime" :type datetime)
+  (:tag #x9011 :name "OffsetTimeOriginal" :type datetime)
+  (:tag #x9011 :name "OffsetTimeDigitized" :type datetime)
+
   (:tag #x9290 :name "SubSecTime" :type ascii)
   (:tag #x9291 :name "SubSecTimeOriginal" :type ascii)
   (:tag #x9292 :name "SubSecTimeDigitized" :type ascii)
@@ -986,7 +991,8 @@ to a universal time."
   (:tag #x001B :name "GPSProcessingMethod" :type undefined)
   (:tag #x001C :name "GPSAreaInformation" :type undefined)
   (:tag #x001D :name "GPSDateStamp" :type ascii)
-  (:tag #x001E :name "GPSDifferential" :type short))
+  (:tag #x001E :name "GPSDifferential" :type short)
+  (:tag #x001F :name "GPSHPositioningError" :type short))
 
 (define-tagset interoperability
   (:tag #x0001 :name "InteroperabilityIndex" :type ascii))
